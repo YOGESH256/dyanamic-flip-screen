@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Cropper with FFmpeg</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
+    <style>
+        .video-container {
+            position: relative;
+            width: 350px;
+            height: 350px;
+        }
+        #videoPlayer, #cropperCanvas, #previewCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+       
+
+        .cropper-modal {
+            background-color:transparent;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-md p-6">
+        <h1 class="text-2xl font-bold mb-4">Dynamic Flip</h1>
+        
+        <input type="file" id="videoUpload" accept="video/*" class="hidden">
+        <button id="uploadButton" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Upload Video</button>
+        
+        <div class="flex mt-4 space-x-4">
+            <div class="w-2/4">
+                <div class="video-container">
+                    <video id="videoPlayer" class="hidden">
+                        Your browser does not support the video tag.
+                    </video>
+                    <canvas id="cropperCanvas" class="hidden"></canvas>
+                </div>
+                <div class="mt-4 flex justify-between items-center">
+                    <button id="playPauseButton" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Play</button>
+                    <input type="range" id="seekBar" class="w-1/2" value="0">
+                    <select id="playbackSpeed" class="border rounded px-2 py-1">
+                        <option value="0.5">0.5x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2">2x</option>
+                    </select>
+                    <input type="range" id="volumeControl" class="w-24" min="0" max="1" step="0.1" value="1">
+                </div>
+            </div>
+            <div class="w-2/4">
+                <div class="video-container">
+                    <canvas id="previewCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <select id="aspectRatio" class="border rounded px-2 py-1">
+                <option value="16:9">16:9</option>
+                <option value="4:3">4:3</option>
+                <option value="1:1" selected>1:1</option>
+                <option value="9:18">9:18</option>
+                <option value="3:4">3:4</option>
+                <option value="4:5">4:5</option>
+            </select>
+            <button id="applyCropButton" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 ml-2">Apply Crop</button>
+            <button id="processVideoButton" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 ml-2">Process Video</button>
+            <button id="startRecordingButton" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 ml-2">Start Recording</button>
+            <button id="stopRecordingButton" class="bg-yellow-700 text-white px-4 py-2 rounded hover:bg-yellow-800 ml-2" disabled>Stop Recording</button>
+            <button id="generatePreviewButton" class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600 ml-2" disabled>Generate Preview</button>
+            <button id="processWithFFmpegButton" class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600 ml-2" disabled>Download the Preview</button>
+        </div>
+        <div class="mt-4">
+            <button id="togglePreviewButton" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Toggle Preview</button>
+        </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js" crossorigin="anonymous"></script>
+
+    <script>
+        let cropper;
+        let ffmpeg;
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        const video = document.getElementById('videoPlayer');
+        const cropperCanvas = document.getElementById('cropperCanvas');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const playPauseButton = document.getElementById('playPauseButton');
+        const seekBar = document.getElementById('seekBar');
+        const playbackSpeedSelect = document.getElementById('playbackSpeed');
+        const volumeControl = document.getElementById('volumeControl');
+        const aspectRatioSelect = document.getElementById('aspectRatio');
+        const applyCropButton = document.getElementById('applyCropButton');
+        const processVideoButton = document.getElementById('processVideoButton');
+        const startRecordingButton = document.getElementById('startRecordingButton');
+        const stopRecordingButton = document.getElementById('stopRecordingButton');
+        const generatePreviewButton = document.getElementById('generatePreviewButton');
+        const togglePreviewButton = document.getElementById('togglePreviewButton');
+        const processWithFFmpegButtonJ = document.getElementById('processWithFFmpegButton');
+       
+
+
+        let recordedData = [];
+        let isRecording = false;
+        let recordingInterval;
+        let isPreviewMode = false;
+
+        async function initFFmpeg() {
+            ffmpeg = createFFmpeg({ log: true });
+            await ffmpeg.load();
+            console.log("FFmpeg loaded");
+        }
+
+        initFFmpeg();
+
+        document.getElementById('uploadButton').addEventListener('click', () => {
+            document.getElementById('videoUpload').click();
+        });
+
+        document.getElementById('videoUpload').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                video.src = URL.createObjectURL(file);
+                video.style.display = 'block';
+                
+                video.onloadedmetadata = () => {
+                    seekBar.max = video.duration;
+                    initializeCropper();
+                };
+            }
+        });
+
+        function initializeCropper() {
+            if (cropper) {
+                cropper.destroy();
+            }
+            
+            cropperCanvas.width = video.videoWidth;
+            cropperCanvas.height = video.videoHeight;
+            cropperCanvas.style.display = 'block';
+            
+            const ctx = cropperCanvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, cropperCanvas.width, cropperCanvas.height);
+            
+            cropper = new Cropper(cropperCanvas, {
+                aspectRatio: getAspectRatioValue(),
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                restore: false,
+                guides: false,
+                center: false,
+                highlight: false,
+                cropBoxMovable: true,
+                minCropBoxHeight: 350,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+                crop: updatePreview,
+                background: false,
+            });
+        }
+
+        function getAspectRatioValue() {
+            const [width, height] = aspectRatioSelect.value.split(':');
+            return parseInt(width) / parseInt(height);
+        }
+
+        
+        function updatePreview() {
+            if (cropper && video.videoWidth && video.videoHeight) {
+                const cropData = cropper.getData();
+                const previewCtx = previewCanvas.getContext('2d');
+                
+                // Clear the preview canvas
+                previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                
+                // Calculate the aspect ratio of the crop area
+                const cropAspectRatio = cropData.width / cropData.height;
+                
+                
+                let previewWidth, previewHeight;
+                // if (previewCanvas.width / previewCanvas.height > cropAspectRatio) {
+                //     previewHeight = previewCanvas.height;
+                //     previewWidth = previewHeight * cropAspectRatio;
+                // } else {
+                //     previewWidth = previewCanvas.width;
+                //     previewHeight = previewWidth / cropAspectRatio;
+                // }
+
+                previewCanvas.width = cropData.width;
+                previewCanvas.height = cropData.height;
+                
+                
+                // const previewX = (previewCanvas.width - previewWidth) / 2;
+                // const previewY = (previewCanvas.height - previewHeight) / 2;
+                
+                // Draw the cropped area of the video onto the preview canvas
+                previewCtx.drawImage(
+                    video,
+                    cropData.x, cropData.y, cropData.width, cropData.height,
+                    0, 0, cropData.width, cropData.height
+                );
+
+               
+            }
+        }
+
+    
+
+        // Modify the video's timeupdate event listener
+        video.addEventListener('timeupdate', () => {
+            seekBar.value = video.currentTime;
+            const ctx = cropperCanvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, cropperCanvas.width, cropperCanvas.height);
+            updatePreview();
+        });
+
+        // Ensure the preview canvas size matches its display size
+        function resizePreviewCanvas() {
+            const container = previewCanvas.parentElement;
+            previewCanvas.width = container.clientWidth;
+            previewCanvas.height = container.clientHeight;
+            updatePreview();
+        }
+
+        // Call resizePreviewCanvas on window resize and initially
+        window.addEventListener('resize', resizePreviewCanvas);
+        resizePreviewCanvas();
+
+
+        playPauseButton.addEventListener('click', () => {
+            if (video.paused) {
+                video.play();
+                playPauseButton.textContent = 'Pause';
+            } else {
+                video.pause();
+                playPauseButton.textContent = 'Play';
+            }
+        });
+
+
+        seekBar.addEventListener('input', () => {
+            video.currentTime = seekBar.value;
+        });
+
+        playbackSpeedSelect.addEventListener('change', () => {
+            video.playbackRate = parseFloat(playbackSpeedSelect.value);
+        });
+
+        volumeControl.addEventListener('input', () => {
+            video.volume = volumeControl.value;
+        });
+
+        aspectRatioSelect.addEventListener('change', () => {
+            if (cropper && typeof cropper.setAspectRatio === 'function') {
+                cropper.setAspectRatio(getAspectRatioValue());
+            }
+        });
+
+       
+
+        processVideoButton.addEventListener('click', async () => {
+            if (!ffmpeg.isLoaded()) {
+                console.log("FFmpeg is not loaded yet");
+                return;
+            }
+
+            if (cropper && typeof cropper.getData === 'function') {
+                const { width, height, x, y } = cropper.getData();
+                const inputFile = document.getElementById('videoUpload').files[0];
+                const inputFileName = 'input.mp4';
+                const outputFileName = 'output.mp4';
+
+                ffmpeg.FS('writeFile', inputFileName, await fetchFile(inputFile));
+
+                await ffmpeg.run(
+                    '-i', inputFileName,
+                    '-filter:v', `crop=${width}:${height}:${x}:${y}`,
+                    '-c:a', 'copy',
+                    outputFileName
+                );
+
+                const data = ffmpeg.FS('readFile', outputFileName);
+                const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+                const videoUrl = URL.createObjectURL(videoBlob);
+
+                const a = document.createElement('a');
+                a.href = videoUrl;
+                a.download = 'cropped-video.mp4';
+                a.click();
+            } else {
+                console.error('Cropper is not properly initialized');
+            }
+        });
+
+        
+        
+processWithFFmpegButtonJ.addEventListener('click', async () => {
+
+    console.log("flkemkmlk")
+if (!ffmpeg.isLoaded()) {
+    console.log("FFmpeg is not loaded yet");
+    return;
+}
+
+
+const inputFile = document.getElementById('videoUpload').files[0];
+if (!inputFile) {
+    console.log("No input file selected");
+    return;
+}
+
+const inputFileName = 'input.mp4';
+const outputFileName = 'output.mp4';
+
+// Write the input file to FFmpeg's virtual file system
+ffmpeg.FS('writeFile', inputFileName, await fetchFile(inputFile));
+
+// Prepare the FFmpeg command
+let filterComplex = '';
+let prevEnd = 0;
+
+const makeEven = (num) => num % 2 === 0 ? num : num + 1;
+
+for (let i = 0; i < recordedData.length; i++) {
+    const { timeStamp, coordinates, volume, playbackRate } = recordedData[i];
+    let [x, y, width, height] = coordinates;
+    
+    // Make width and height even if they're not already
+    width = makeEven(width);
+    height = makeEven(height);
+    
+    // Adjust x and y if necessary to maintain alignment
+    x = Math.max(0, x - (makeEven(x) - x));
+    y = Math.max(0, y - (makeEven(y) - y));
+
+    const duration = i < recordedData.length - 1 ? recordedData[i+1].timeStamp - timeStamp : 999999;
+
+    filterComplex += `[0:v]trim=${prevEnd}:${timeStamp},setpts=PTS-STARTPTS,crop=${width}:${height}:${x}:${y},scale=${width}:${height}[v${i}];`;
+    filterComplex += `[0:a]atrim=${prevEnd}:${timeStamp},asetpts=PTS-STARTPTS,volume=${volume},atempo=${playbackRate}[a${i}];`;
+
+    console.log(filterComplex);
+
+    prevEnd = timeStamp;
+}
+
+filterComplex += `${recordedData.map((_, i) => `[v${i}][a${i}]`).join('')}concat=n=${recordedData.length}:v=1:a=1[outv][outa]`;
+
+// Run FFmpeg command
+await ffmpeg.run(
+    '-i', inputFileName,
+    '-filter_complex', filterComplex,
+    '-map', '[outv]',
+    '-map', '[outa]',
+    outputFileName
+);
+
+// Read the output file and create a download link
+const data = ffmpeg.FS('readFile', outputFileName);
+const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+const videoUrl = URL.createObjectURL(videoBlob);
+
+const a = document.createElement('a');
+a.href = videoUrl;
+a.download = 'processed-video.mp4';
+a.click();
+
+// Clean up
+ffmpeg.FS('unlink', inputFileName);
+ffmpeg.FS('unlink', outputFileName);
+});
+
+        startRecordingButton.addEventListener('click', () => {
+            isRecording = true;
+            recordedData = [];
+            startRecordingButton.disabled = true;
+            stopRecordingButton.disabled = false;
+            recordingInterval = setInterval(recordData, 1000); // Record every second
+        });
+
+        stopRecordingButton.addEventListener('click', () => {
+            isRecording = false;
+            clearInterval(recordingInterval);
+            startRecordingButton.disabled = false;
+            stopRecordingButton.disabled = true;
+            generatePreviewButton.disabled = false;
+            processWithFFmpegButtonJ.disabled = false;
+        });
+
+        generatePreviewButton.addEventListener('click', () => {
+            const jsonString = JSON.stringify(recordedData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'recorded-data.json';
+            a.click();
+        });
+
+        togglePreviewButton.addEventListener('click', () => {
+            isPreviewMode = !isPreviewMode;
+            if (isPreviewMode) {
+                playRecordedSession();
+                togglePreviewButton.textContent = 'Exit Preview';
+            } else {
+                stopRecordedSession();
+                togglePreviewButton.textContent = 'Toggle Preview';
+            }
+        });
+
+        function recordData() {
+            if (cropper && typeof cropper.getData === 'function') {
+                const { x, y, width, height } = cropper.getData();
+                const dataPoint = {
+                    timeStamp: video.currentTime,
+                    coordinates: [x, y, width, height],
+                    volume: video.volume,
+                    playbackRate: video.playbackRate
+                };
+                recordedData.push(dataPoint);
+            }
+        }
+
+        function playRecordedSession() {
+            if (recordedData.length === 0) {
+                console.log('No recorded data available');
+                return;
+            }
+
+            video.pause();
+            let index = 0;
+
+            function applyRecordedState() {
+                if (index >= recordedData.length) {
+                    console.log('Recorded session playback completed');
+                    return;
+                }
+
+                const { timeStamp, coordinates, volume, playbackRate } = recordedData[index];
+                video.currentTime = timeStamp;
+                video.volume = volume;
+                video.playbackRate = playbackRate;
+
+                if (cropper && typeof cropper.setData === 'function') {
+                    cropper.setData({
+                        x: coordinates[0],
+                        y: coordinates[1],
+                        width: coordinates[2],
+                        height: coordinates[3]
+                    });
+                }
+
+                updatePreview();
+                index++;
+                setTimeout(applyRecordedState, 1000); // Apply next state after 1 second
+            }
+
+            applyRecordedState();
+        }
+
+        function stopRecordedSession() {
+            // Reset video to initial state
+            video.currentTime = 0;
+            video.volume = 1;
+            video.playbackRate = 1;
+            if (cropper && typeof cropper.reset === 'function') {
+                cropper.reset();
+            }
+            updatePreview();
+        }
+
+
+        
+    </script>
+</body>
+</html>
