@@ -45,8 +45,8 @@ await page.mouse.move(bb2.x + bb2.width - 2 - 60, bb2.y + bb2.height - 2 - 100, 
 await page.mouse.up();
 console.log('box after resize:', await page.textContent('#cropMeta'));
 
-// Record by playing and dragging the box for ~3 seconds
-await page.click('#playPause');
+// Record: press Record (plays + marks clip start), drag the box for ~3 seconds, press Stop
+await page.click('#record');
 await page.waitForTimeout(300);
 const bb3 = await page.locator('.cropbox').boundingBox();
 await page.mouse.move(bb3.x + bb3.width / 2, bb3.y + bb3.height / 2);
@@ -56,7 +56,8 @@ for (let i = 1; i <= 30; i++) {
   await page.waitForTimeout(100);
 }
 await page.mouse.up();
-await page.click('#playPause');
+await page.click('#record');
+console.log('clip after record:', await page.textContent('#rangeLabel'));
 assert.ok((await page.textContent('#kfMeta')).match(/^(\d+) moves saved$/) && Number(RegExp.$1) > 30, 'expected >30 moves, got ' + await page.textContent('#kfMeta'));
 console.log('after record:', await page.textContent('#pathHint'), '|', await page.textContent('#kfMeta'));
 await page.screenshot({ path: `${S}/02-recorded.png` });

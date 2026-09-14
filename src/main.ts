@@ -26,6 +26,7 @@ const pathHint = $('pathHint');
 const toasts = $('toasts');
 const help = $('help');
 const exitReplay = $<HTMLButtonElement>('exitReplay');
+const recordBtn = $<HTMLButtonElement>('record');
 const coach = $('coach');
 const resetRangeBtn = $<HTMLButtonElement>('resetRange');
 const clearBtn = $<HTMLButtonElement>('clearPath');
@@ -145,8 +146,8 @@ function updateMeta(rect: Rect): void {
   pathHint.classList.toggle('done', n > 0);
   if (state.mode === 'edit' && !state.recording) {
     setHint(n === 0
-      ? 'Press play, then drag the frame to follow the action. Moves save automatically.'
-      : `Moves saved up to ${fmtTime(state.path.duration)}. Play to watch. Drag again to change any part.`);
+      ? 'Press Record, steer the frame, press Stop. That saves your moves and marks the clip.'
+      : `Moves saved up to ${fmtTime(state.path.duration)}. Play to watch, drag while playing to redo a part, or record again.`);
   }
 }
 
@@ -154,6 +155,7 @@ function setMode(mode: Mode): void {
   state.mode = mode;
   app.dataset.mode = mode;
   exitReplay.hidden = mode !== 'replay';
+  recordBtn.disabled = mode === 'replay';
   if (mode === 'replay') {
     stopRecording();
     rateSel.disabled = true;
@@ -274,10 +276,7 @@ video.addEventListener('pause', () => {
   playPause.setAttribute('aria-label', 'Play');
 });
 video.addEventListener('ended', () => {
-  if (state.recording) {
-    stopRecording();
-    setStatus(`Recording finished with ${state.path.length} keyframes.`, 'ok');
-  }
+  if (state.recording) stopRecording();
 });
 
 video.addEventListener('seeked', () => {
@@ -369,25 +368,41 @@ function startRecording(): void {
 function stopRecording(): void {
   if (!state.recording) return;
   state.recording = false;
+  const wasManual = state.manualRecord;
   state.manualRecord = false;
   app.dataset.recording = 'false';
+  recordBtn.classList.remove('on');
+  recordBtn.querySelector('.label')!.textContent = 'Record clip';
   state.path.set(currentKeyframe());
+  if (wasManual) {
+    // The Record button also marks the clip: start where it began, end where it stopped.
+    state.trim.end = Math.max(video.currentTime, state.trim.start + 0.1);
+    video.pause();
+    updateRange();
+    setStatus(`Clip ${fmtTime(state.trim.start)} to ${fmtTime(state.trim.end)} saved with ${state.path.length} moves. Export when ready.`, 'ok');
+  }
   updateMeta(box.value);
 }
 
-/** R key: record continuously without holding the mouse down. */
+/** Record button / R key: record continuously and mark the clip range. */
 function toggleManualRecord(): void {
-  if (state.mode !== 'edit') return;
+  if (!state.file || state.mode !== 'edit') return;
   if (state.recording) {
     stopRecording();
-    setStatus(`Saved ${state.path.length} moves.`, 'ok');
-  } else {
-    state.manualRecord = true;
-    if (video.paused) void video.play();
-    startRecording();
-    setStatus('Recording until you press R again.');
+    return;
   }
+  state.manualRecord = true;
+  state.trim.start = video.currentTime;
+  state.trim.end = video.duration;
+  updateRange();
+  recordBtn.classList.add('on');
+  recordBtn.querySelector('.label')!.textContent = 'Stop';
+  if (video.paused) void video.play();
+  startRecording();
+  setHint('Recording. Steer the frame. Press Stop where the clip should end.');
 }
+
+recordBtn.addEventListener('click', toggleManualRecord);
 
 clearBtn.addEventListener('click', () => {
   stopRecording();

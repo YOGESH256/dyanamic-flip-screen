@@ -163,6 +163,7 @@ kbd {
   background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; margin-right: 8px; vertical-align: -4px; flex: none;
 }
 .path-hint { display: flex; align-items: center; }
+.btn.record .dot { animation: none; }
 .path-hint.done .step-dot { background: var(--ok); color: #05261a; }
 .badge.muted { color: var(--muted); background: var(--panel-2); }
 .replay-pill { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-2); }
