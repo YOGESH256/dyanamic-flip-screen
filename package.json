@@ -1,37 +1,25 @@
 {
-    "name": "jim-jam",
-    "version": "1.1.0",
-    "description": "",
-    "main": "server.js",
-    "scripts": {
-      "test": "echo \"Error: no test specified\" && exit 1",
-      "dev": "node app.js",
-      "nodeCheck": "node -v | grep 'v20' || (echo 'Error: Node.js version must be v20' && exit 1)"
-    },
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
-    "dependencies": {
-      "@aws-sdk/client-s3": "^3.609.0",
-      "axios": "^1.6.8",
-      "connect-mongo": "^5.1.0",
-      "cors": "^2.8.5",
-      "csv-parse": "^5.5.6",
-      "dotenv": "^16.4.5",
-      "ejs": "^3.1.9",
-      "express": "^4.19.2",
-      "express-session": "^1.18.0",
-      "express-validator": "^7.0.1",
-      "json-2-csv": "^5.5.5",
-      "json2csv": "^6.0.0-alpha.2",
-      "mime-types": "^2.1.35",
-      "mongoose": "^8.2.1",
-      "multer": "^1.4.5-lts.1",
-      "otp-generator": "^4.0.1",
-      "uuid": "^10.0.0"
-    },
-    "engines": {
-      "node": ">=20.0.0"
-    }
+  "name": "dynamic-flip",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Turn wide video into tall video, in the browser, with a hand-steered crop path.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node tests/e2e.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "mediabunny": "^1.56.2"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.3"
   }
-  
+}

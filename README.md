@@ -1,43 +1,69 @@
-Features added : 
+# Dynamic Flip
 
-1. **Video Player Integration:**
-   * **Static Media Content:** Implement a video player to display static media content (use a 16:9 aspect ratio media file)
-   * **Playback Controls:** Ensure the video player supports play, pause, and seek.
-   * **Playback Rate Control:** Allow users to control playback speed (0.5x, 1x, 1.5x, 2x).
-   * **Volume Control:** Provide volume control options.
-2. **Cropper Layer:**
-   * **Overlay:** Overlay a cropper layer on top of the video player.
-   * **Aspect Ratios:** Support multiple aspect ratios: 9:18, 9:16, 4:3, 3:4, 1:1, 4:5.
-   * **Movable and Resizable:** The cropper should be movable and resizable within the video player. It should occupy 100% of the video player's height.
-   * **Constraints:** Ensure the cropper stays within the video player's dimensions.
-3. **Dynamic Preview:**
-   * **Real-Time Update:** Display a dynamic preview of the cropped segment in a designated area on the right.
-   * **Aspect Ratio Matching:** The preview must match the cropper's aspect ratio and be within a fixed height and width container. The parent container's (Modal) height should not change with the cropper’s aspect ratio.
-   * **Synchronisation:** Ensure real-time updates with negligible delay between the video player and the preview.
-4. **UI and Functionality:**
-   * **Design Specifications:** Match the UI to the provided Figma design pixel-to-pixel.
-   * **Coordinates Recording:** Record the cropper's coordinates, time elapsed, volume, and playback rate at multiple points in time.
-      * **Example JSON:**
+Turn wide video into tall video. Steer the crop by hand while the video plays, like holding a phone camera. Everything runs in your browser: nothing is uploaded, no account, no watermark.
+
+## Why
+
+Auto-reframe tools guess where the subject is and often guess wrong. Pro editors let you keyframe the crop by hand, but that is slow. Dynamic Flip records your hand movement as the crop path, then renders it with hardware-accelerated WebCodecs.
+
+## Features
+
+- Drop in MP4, MOV, or WebM. Play, pause, seek, speed 0.5x to 2x, volume.
+- Crop box locked to 9:16, 9:18, 4:5, 1:1, 3:4, or 4:3. Full player height by default. Movable and resizable, always inside the frame.
+- Live preview of the cropped region in a fixed-size panel, updated every animation frame.
+- **Record path**: press record, drag the box while the video plays. Every frame stores time, crop rectangle, volume, and playback rate. Re-recording over a span replaces it. Dragging while paused edits the keyframe under the playhead.
+- Download the path as JSON, import it back.
+- **Replay session** tab plays the recorded JSON back: crop, volume, and speed follow it.
+- **Export MP4** in the browser via WebCodecs and [Mediabunny](https://mediabunny.dev). H.264 video, AAC audio, crop interpolated per frame.
+
+JSON format:
 
 ```json
 [
-  {
-    "timeStamp": 0,
-    "coordinates": [0, 0, 31.640625, 100],
-    "volume": 0.5,
-    "playbackRate": 1.0
-  },
-  {
-    "timeStamp": 5,
-    "coordinates": [10, 10, 41.640625, 110],
-    "volume": 0.5,
-    "playbackRate": 1.0
-  }
+  { "timeStamp": 0,    "coordinates": [438, 0, 405, 720], "volume": 1, "playbackRate": 1 },
+  { "timeStamp": 1.5,  "coordinates": [320, 0, 405, 720], "volume": 1, "playbackRate": 1 }
 ]
-
 ```
 
-   * **Download JSON:** CTA to download this JSON data on clicking "Generate Preview".
-   * **Negligible Delay:** Ensure no or negligible delay between the preview and the actual video for a seamless experience.
-Bonus for:
-* **Recorded Session Preview:** Include a separate tab to preview a recorded session using the json coordinates, replicating the cropper's positions, volume, and playback rate.
+`coordinates` is `[x, y, width, height]` in source-video pixels.
+
+## Keyboard
+
+| Key | Action |
+| --- | --- |
+| Space | Play / pause |
+| R | Start / stop recording |
+| ← → | Step one frame (Shift: one second) |
+
+## Browser support
+
+Preview, recording, and JSON work anywhere. Export needs WebCodecs with H.264: Chrome 94+, Edge 94+, Firefox 130+ (desktop), Safari 26+.
+
+## Develop
+
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # typecheck + production build into dist/
+npm run test:e2e   # headless Chrome smoke test; needs dev server running, Google Chrome, and ffmpeg
+```
+
+Static site. Deploys to Vercel, Netlify, or GitHub Pages with no server.
+
+## Limits
+
+- Export copies audio unchanged. Volume and playback-rate changes apply to preview and replay only.
+- Export speed depends on your hardware. A 1080p minute takes roughly 10 to 30 seconds on a recent laptop.
+- Very large files are streamed, but decode still happens on your machine, so mobile devices may struggle above a few hundred MB.
+
+## Structure
+
+```
+index.html        app shell
+src/main.ts       wiring, recording loop, timeline, export UI
+src/cropbox.ts    aspect-locked movable/resizable crop rectangle
+src/path.ts       keyframe list with interpolation and JSON in/out
+src/preview.ts    cropped-region preview canvas
+src/exporter.ts   Mediabunny conversion with per-frame crop
+tests/e2e.mjs     Playwright smoke test
+```

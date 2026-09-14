@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dynamic Flip</title>
+    <meta name="description" content="Turn wide video into tall video. Steer the crop by hand while it plays. Runs entirely in your browser." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='4' y='6' width='24' height='20' rx='3' fill='%23161a22'/><rect x='11' y='6' width='10' height='20' rx='2' fill='%237c5cff'/></svg>" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <span>Dynamic Flip</span>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button class="tab active" role="tab" data-tab="edit" aria-selected="true">Edit</button>
+        <button class="tab" role="tab" data-tab="replay" aria-selected="false">Replay session</button>
+      </nav>
+      <div class="topbar-right">
+        <button id="openFile" class="btn ghost">Open video</button>
+        <input type="file" id="fileInput" accept="video/*" hidden />
+      </div>
+    </header>
+
+    <main id="app" class="app" data-state="empty">
+      <section id="dropzone" class="dropzone">
+        <div class="drop-inner">
+          <div class="drop-icon" aria-hidden="true"></div>
+          <h1>Drop a wide video here</h1>
+          <p>Pick a tall frame, press record, and steer it while the video plays. Nothing leaves your computer.</p>
+          <button id="dropPick" class="btn primary">Choose a file</button>
+          <p class="hint">MP4, MOV, WebM. Export needs Chrome 94+, Edge 94+, Firefox 130+, or Safari 26+.</p>
+        </div>
+      </section>
+
+      <section id="workspace" class="workspace" hidden>
+        <div class="stage-col">
+          <div id="stage" class="stage">
+            <video id="video" playsinline preload="auto"></video>
+          </div>
+
+          <div class="controls">
+            <button id="playPause" class="btn icon" aria-label="Play">▶</button>
+            <span id="timeLabel" class="time">0:00 / 0:00</span>
+            <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+            <label class="ctl">
+              <span>Speed</span>
+              <select id="rate">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2">2x</option>
+              </select>
+            </label>
+            <label class="ctl">
+              <span>Vol</span>
+              <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
+            </label>
+          </div>
+
+          <div class="timeline-wrap">
+            <canvas id="timeline" class="timeline" height="28" aria-label="Keyframe timeline"></canvas>
+          </div>
+
+          <div class="toolbar">
+            <label class="ctl">
+              <span>Ratio</span>
+              <select id="aspect"></select>
+            </label>
+            <button id="resetBox" class="btn ghost" title="Full-height box, centred">Reset box</button>
+            <span class="spacer"></span>
+            <button id="record" class="btn record">● Record path</button>
+            <button id="clearPath" class="btn ghost">Clear path</button>
+            <button id="downloadJson" class="btn ghost">Download JSON</button>
+            <button id="importJson" class="btn ghost">Import JSON</button>
+            <input type="file" id="jsonInput" accept="application/json,.json" hidden />
+          </div>
+          <p id="status" class="status" role="status"></p>
+        </div>
+
+        <aside class="side-col">
+          <h2>Preview</h2>
+          <div id="previewBox" class="preview-box">
+            <canvas id="preview"></canvas>
+          </div>
+          <p class="meta"><span id="cropMeta">—</span> · <span id="kfMeta">0 keyframes</span></p>
+
+          <h2>Export</h2>
+          <label class="ctl block">
+            <span>Max size</span>
+            <select id="maxEdge">
+              <option value="1080">1080p (tall edge 1080 px)</option>
+              <option value="1920" selected>Full (up to 1920 px)</option>
+              <option value="720">720p</option>
+            </select>
+          </label>
+          <button id="export" class="btn primary block">Export MP4</button>
+          <div id="exportProgress" class="progress" hidden><div class="bar"></div></div>
+          <p id="exportNote" class="hint">Audio is copied unchanged. Volume and speed changes apply to preview and replay only.</p>
+          <div id="exportResult" class="export-result" hidden>
+            <video id="exportVideo" controls playsinline></video>
+            <a id="exportDownload" class="btn ghost block" download="dynamic-flip.mp4">Download</a>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </body>
+  <script type="module" src="/src/main.ts"></script>
+</html>
