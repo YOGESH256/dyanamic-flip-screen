@@ -1,0 +1,15 @@
+{
+  "name": "retrace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local video-to-code workbench with a scrubbable project timeline.",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "test": "node --test tests/core.test.mjs",
+    "test:e2e": "node tests/e2e.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "devDependencies": { "playwright": "^1.63.0" }
+}

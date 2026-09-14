@@ -11,10 +11,9 @@ Auto-reframe tools guess where the subject is and often guess wrong. Pro editors
 - Drop in MP4, MOV, or WebM. Play, pause, seek, speed 0.5x to 2x, volume.
 - Crop box locked to 9:16, 9:18, 4:5, 1:1, 3:4, or 4:3. Full player height by default. Movable and resizable, always inside the frame.
 - Live preview of the cropped region in a fixed-size panel, updated every animation frame.
-- **Record path**: press record, drag the box while the video plays. Every frame stores time, crop rectangle, volume, and playback rate. Re-recording over a span replaces it. Dragging while paused edits the keyframe under the playhead.
-- Download the path as JSON, import it back.
-- **Replay session** tab plays the recorded JSON back: crop, volume, and speed follow it.
-- **In / out points** (I and O keys) so you export just the segment you want from a long recording.
+- **Play and drag.** Grabbing the frame while the video plays saves your moves, every frame, with time, crop rectangle, volume, and playback rate. Dragging over a span you already recorded replaces it. Dragging while paused fixes that single moment. Press R to record without holding the mouse.
+- **Trim** by dragging the handles at either end of the timeline (or I and O keys), so a 10 s clip from an hour-long recording exports in seconds.
+- **Session menu**: save moves as JSON, load them back, replay a saved session with crop, volume, and speed following it.
 - **Export MP4** in the browser via WebCodecs and [Mediabunny](https://mediabunny.dev). H.264 video, AAC audio, crop interpolated per frame.
 
 JSON format:
@@ -28,12 +27,20 @@ JSON format:
 
 `coordinates` is `[x, y, width, height]` in source-video pixels.
 
+## How to use
+
+1. Drop a landscape clip.
+2. Pick a shape: 9:16, 9:18, 4:5, 1:1, 3:4, 4:3.
+3. Press play, drag the frame to follow the action. Let go when done.
+4. Optional: drag the timeline handles to trim.
+5. Export MP4.
+
 ## Keyboard
 
 | Key | Action |
 | --- | --- |
 | Space | Play / pause |
-| R | Start / stop recording |
+| R | Record without holding the mouse (toggle) |
 | ← → | Step one frame (Shift: one second) |
 | I / O | Set export in / out point at playhead |
 | 1 … 6 | Aspect ratio |

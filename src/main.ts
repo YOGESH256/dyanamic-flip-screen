@@ -25,7 +25,9 @@ const scrubTip = $('scrubTip');
 const pathHint = $('pathHint');
 const toasts = $('toasts');
 const help = $('help');
-const recordBtn = $<HTMLButtonElement>('record');
+const exitReplay = $<HTMLButtonElement>('exitReplay');
+const coach = $('coach');
+const resetRangeBtn = $<HTMLButtonElement>('resetRange');
 const clearBtn = $<HTMLButtonElement>('clearPath');
 const timeline = $<HTMLCanvasElement>('timeline');
 const cropMeta = $('cropMeta');
@@ -51,6 +53,8 @@ const state = {
   mode: 'edit' as Mode,
   aspect: 0,
   trim: { start: 0, end: Infinity },
+  manualRecord: false,
+  dragging: false,
   exporting: null as AbortController | null,
   resultUrl: '',
 };
@@ -136,42 +140,52 @@ function applyPathAt(t: number): void {
 function updateMeta(rect: Rect): void {
   cropMeta.textContent = `${Math.round(rect.w)} × ${Math.round(rect.h)} px, offset ${Math.round(rect.x)}, ${Math.round(rect.y)}`;
   const n = state.path.length;
-  kfMeta.textContent = `${n} keyframe${n === 1 ? '' : 's'}`;
+  kfMeta.textContent = n === 0 ? 'No moves yet' : `${n} moves saved`;
+  kfMeta.classList.toggle('muted', n === 0);
+  pathHint.classList.toggle('done', n > 0);
   if (state.mode === 'edit' && !state.recording) {
     setHint(n === 0
-      ? 'Drag the frame to place it, then press Record and steer while it plays.'
-      : `Path covers 0:00 to ${fmtTime(state.path.duration)}. Play to watch it, drag while paused to fix a keyframe, or record again over any span.`);
+      ? 'Press play, then drag the frame to follow the action. Moves save automatically.'
+      : `Moves saved up to ${fmtTime(state.path.duration)}. Play to watch. Drag again to change any part.`);
   }
 }
 
 function setMode(mode: Mode): void {
   state.mode = mode;
   app.dataset.mode = mode;
-  document.querySelectorAll<HTMLButtonElement>('.tab').forEach((t) => {
-    const on = t.dataset.tab === mode;
-    t.classList.toggle('active', on);
-    t.setAttribute('aria-selected', String(on));
-  });
+  exitReplay.hidden = mode !== 'replay';
   if (mode === 'replay') {
     stopRecording();
-    recordBtn.disabled = true;
     rateSel.disabled = true;
     volumeCtl.disabled = true;
-    if (state.path.length === 0) {
-      setHint('No recorded session yet. Record one in the Edit tab or import a JSON file.');
-    } else {
-      setHint('Replaying the recorded session. Frame, volume and speed follow the JSON.');
-      video.pause();
-      video.currentTime = 0;
-      applyPathAt(0);
-    }
+    setHint('Replaying the saved session. Frame, volume and speed follow it. Press play.');
+    video.pause();
+    video.currentTime = 0;
+    applyPathAt(0);
   } else {
-    recordBtn.disabled = false;
     rateSel.disabled = false;
     volumeCtl.disabled = false;
     updateMeta(box.value);
   }
 }
+
+$('replayBtn').addEventListener('click', () => {
+  closeMenu();
+  if (state.path.length === 0) {
+    setStatus('Nothing saved yet. Play and drag the frame first, or load a JSON file.', 'error');
+    return;
+  }
+  setMode('replay');
+});
+exitReplay.addEventListener('click', () => setMode('edit'));
+
+function closeMenu(): void {
+  document.querySelector<HTMLDetailsElement>('details.menu')?.removeAttribute('open');
+}
+document.addEventListener('click', (e) => {
+  const menu = document.querySelector<HTMLDetailsElement>('details.menu[open]');
+  if (menu && !menu.contains(e.target as Node)) menu.removeAttribute('open');
+});
 
 // ---------- file loading ----------
 
@@ -194,6 +208,9 @@ function loadFile(file: File): void {
 video.addEventListener('loadedmetadata', () => {
   dropzone.hidden = true;
   workspace.hidden = false;
+  let seen = false;
+  try { seen = localStorage.getItem('df-coach') === '1'; } catch { /* storage unavailable */ }
+  coach.hidden = seen;
   app.dataset.state = 'ready';
   box.setAspect(aspectValue(), aspectLabel());
   box.setSource(video.videoWidth, video.videoHeight);
@@ -309,51 +326,73 @@ $('resetBox').addEventListener('click', () => box.reset());
 box.onChange((rect, interactive) => {
   preview.setRect(rect);
   updateMeta(rect);
-  // Dragging while paused and not recording edits the keyframe at the playhead.
+  // Dragging while paused edits the moment under the playhead.
   if (interactive && !state.recording && state.mode === 'edit' && state.path.length > 0 && video.paused) {
     state.path.set(currentKeyframe());
   }
 });
+
+// Grabbing the frame while the video plays is what records. Letting go stops, unless R-mode is on.
+box.onDrag((dragging) => {
+  state.dragging = dragging;
+  dismissCoach();
+  if (state.mode !== 'edit') return;
+  if (dragging && !video.paused) startRecording();
+  else if (!dragging && !state.manualRecord) stopRecording();
+});
+// Starting playback mid-drag also records.
+video.addEventListener('play', () => {
+  if (state.dragging && state.mode === 'edit') startRecording();
+});
+
+function dismissCoach(): void {
+  if (coach.hidden) return;
+  coach.hidden = true;
+  try { localStorage.setItem('df-coach', '1'); } catch { /* ignore */ }
+}
+$('coachOk').addEventListener('click', dismissCoach);
+stage.addEventListener('pointerdown', dismissCoach, { capture: true });
 
 new ResizeObserver(layout).observe(stage);
 
 // ---------- recording ----------
 
 function startRecording(): void {
-  if (!state.file || state.mode !== 'edit') return;
+  if (!state.file || state.mode !== 'edit' || state.recording) return;
   state.recording = true;
   state.lastRecordedT = video.currentTime;
   app.dataset.recording = 'true';
-  recordBtn.classList.add('on');
-  recordBtn.querySelector('.label')!.textContent = 'Stop';
   state.path.set(currentKeyframe());
-  if (video.paused) void video.play();
-  setHint('Recording. Drag the frame to follow the action. Press R or the button to stop.');
+  setHint('Saving your moves. Keep following the action, let go when done.');
 }
 
 function stopRecording(): void {
   if (!state.recording) return;
   state.recording = false;
+  state.manualRecord = false;
   app.dataset.recording = 'false';
-  recordBtn.classList.remove('on');
-  recordBtn.querySelector('.label')!.textContent = 'Record path';
   state.path.set(currentKeyframe());
   updateMeta(box.value);
 }
 
-recordBtn.addEventListener('click', () => {
+/** R key: record continuously without holding the mouse down. */
+function toggleManualRecord(): void {
+  if (state.mode !== 'edit') return;
   if (state.recording) {
     stopRecording();
-    setStatus(`Recorded ${state.path.length} keyframes.`, 'ok');
+    setStatus(`Saved ${state.path.length} moves.`, 'ok');
   } else {
+    state.manualRecord = true;
+    if (video.paused) void video.play();
     startRecording();
+    setStatus('Recording until you press R again.');
   }
-});
+}
 
 clearBtn.addEventListener('click', () => {
   stopRecording();
   state.path.clear();
-  setStatus('Path cleared.');
+  setStatus('Saved moves cleared.');
 });
 
 // Per-frame loop: record while recording, follow the path otherwise.
@@ -405,17 +444,19 @@ function drawTimeline(): void {
   ctx.fillStyle = '#323a48';
   roundRect(ctx, 0, trackY, Math.max(0, px), trackH, 4);
   ctx.fill();
-  // Excluded region outside the export range
+  // Clip range: dim what is outside, draw grab handles at both ends
+  const xi = (state.trim.start / dur) * w;
+  const xo = (Math.min(state.trim.end, dur) / dur) * w;
   if (hasTrim()) {
     ctx.fillStyle = 'rgba(11, 13, 18, .7)';
-    const xi = (state.trim.start / dur) * w;
-    const xo = (state.trim.end / dur) * w;
     if (xi > 0) ctx.fillRect(0, trackY, xi, trackH);
     if (xo < w) ctx.fillRect(xo, trackY, w - xo, trackH);
-    ctx.fillStyle = '#eef0f5';
-    ctx.fillRect(xi, trackY - 3, 2, trackH + 6);
-    ctx.fillRect(xo - 2, trackY - 3, 2, trackH + 6);
   }
+  ctx.fillStyle = hasTrim() ? '#eef0f5' : '#5f6778';
+  roundRect(ctx, Math.max(0, xi), trackY - 4, 5, trackH + 8, 2);
+  ctx.fill();
+  roundRect(ctx, Math.min(w - 5, xo - 5), trackY - 4, 5, trackH + 8, 2);
+  ctx.fill();
   // Recorded coverage: contiguous runs of keyframes (gap > 0.5s splits a run)
   const kfs = state.path.keyframes;
   if (kfs.length) {
@@ -449,6 +490,34 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 let seeking = false;
+let grabbing: 'in' | 'out' | null = null;
+const HANDLE_PX = 12;
+
+function handleAt(clientX: number): 'in' | 'out' | null {
+  if (!video.duration) return null;
+  const r = timeline.getBoundingClientRect();
+  const xi = (state.trim.start / video.duration) * r.width;
+  const xo = (state.trim.end / video.duration) * r.width;
+  const x = clientX - r.left;
+  const di = Math.abs(x - xi);
+  const dout = Math.abs(x - xo);
+  if (di <= HANDLE_PX && di <= dout) return 'in';
+  if (dout <= HANDLE_PX) return 'out';
+  return null;
+}
+
+function dragHandle(clientX: number): void {
+  const r = timeline.getBoundingClientRect();
+  const t = clamp01((clientX - r.left) / r.width) * video.duration;
+  if (grabbing === 'in') state.trim.start = Math.min(t, state.trim.end - 0.1);
+  else state.trim.end = Math.max(t, state.trim.start + 0.1);
+  video.currentTime = t;
+  if (!state.recording) applyPathAt(t);
+  scrubTip.textContent = `${grabbing === 'in' ? 'Start' : 'End'} ${fmtTime(t)}`;
+  scrubTip.style.left = `${clamp01((clientX - r.left) / r.width) * 100}%`;
+  updateRange();
+}
+
 function scrubTo(clientX: number): void {
   const r = timeline.getBoundingClientRect();
   const t = clamp01((clientX - r.left) / r.width) * video.duration;
@@ -463,16 +532,24 @@ function clamp01(v: number): number {
 timeline.addEventListener('pointerdown', (e) => {
   if (!video.duration) return;
   e.preventDefault();
-  seeking = true;
   timeline.setPointerCapture(e.pointerId);
   scrubTip.hidden = false;
-  scrubTo(e.clientX);
+  grabbing = handleAt(e.clientX);
+  if (grabbing) {
+    dragHandle(e.clientX);
+  } else {
+    seeking = true;
+    scrubTo(e.clientX);
+  }
 });
 timeline.addEventListener('pointermove', (e) => {
   if (!video.duration) return;
-  if (seeking) {
+  if (grabbing) {
+    dragHandle(e.clientX);
+  } else if (seeking) {
     scrubTo(e.clientX);
   } else {
+    timeline.classList.toggle('grab', handleAt(e.clientX) !== null);
     const r = timeline.getBoundingClientRect();
     const k = clamp01((e.clientX - r.left) / r.width);
     scrubTip.hidden = false;
@@ -482,7 +559,9 @@ timeline.addEventListener('pointermove', (e) => {
 });
 for (const evt of ['pointerup', 'pointercancel'] as const) {
   timeline.addEventListener(evt, () => {
+    if (grabbing) setStatus(`Clip ${fmtTime(state.trim.start)} to ${fmtTime(state.trim.end)}. Drag the handles to change.`);
     seeking = false;
+    grabbing = null;
     scrubTip.hidden = true;
   });
 }
@@ -507,6 +586,7 @@ function download(blob: Blob, name: string): void {
 }
 
 $('downloadJson').addEventListener('click', () => {
+  closeMenu();
   if (state.path.length === 0) {
     setStatus('Nothing recorded yet.', 'error');
     return;
@@ -515,7 +595,10 @@ $('downloadJson').addEventListener('click', () => {
   download(new Blob([json], { type: 'application/json' }), 'dynamic-flip-session.json');
 });
 
-$('importJson').addEventListener('click', () => jsonInput.click());
+$('importJson').addEventListener('click', () => {
+  closeMenu();
+  jsonInput.click();
+});
 jsonInput.addEventListener('change', async () => {
   const f = jsonInput.files?.[0];
   jsonInput.value = '';
@@ -537,7 +620,7 @@ jsonInput.addEventListener('change', async () => {
     state.path.clear();
     for (const kf of imported.keyframes) state.path.set(kf);
     applyPathAt(video.currentTime);
-    setStatus(`Imported ${imported.length} keyframes.`, 'ok');
+    setStatus(`Loaded ${imported.length} moves.`, 'ok');
   } catch (err) {
     setStatus(`Import failed: ${(err as Error).message}`, 'error');
   }
@@ -553,6 +636,7 @@ function updateRange(): void {
   rangeLabel.textContent = hasTrim()
     ? `${fmtTime(state.trim.start)} – ${fmtTime(state.trim.end)} (${fmtTime(state.trim.end - state.trim.start)})`
     : 'whole video';
+  resetRangeBtn.hidden = !hasTrim();
   drawTimeline();
 }
 
@@ -570,9 +654,7 @@ function setOut(): void {
   setStatus(`Out point ${fmtTime(state.trim.end)}`);
 }
 
-$('setIn').addEventListener('click', setIn);
-$('setOut').addEventListener('click', setOut);
-$('resetRange').addEventListener('click', () => {
+resetRangeBtn.addEventListener('click', () => {
   state.trim = { start: 0, end: video.duration || Infinity };
   updateRange();
 });
@@ -636,11 +718,7 @@ exportBtn.addEventListener('click', async () => {
   }
 });
 
-// ---------- tabs and keyboard ----------
-
-document.querySelectorAll<HTMLButtonElement>('.tab').forEach((t) => {
-  t.addEventListener('click', () => setMode(t.dataset.tab as Mode));
-});
+// ---------- keyboard ----------
 
 function toggleHelp(force?: boolean): void {
   help.hidden = force === undefined ? !help.hidden : !force;
@@ -682,7 +760,7 @@ document.addEventListener('keydown', (e) => {
       break;
     case 'r':
     case 'R':
-      if (state.mode === 'edit') recordBtn.click();
+      toggleManualRecord();
       break;
     case 'ArrowLeft':
     case 'ArrowRight': {

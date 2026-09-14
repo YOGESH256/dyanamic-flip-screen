@@ -28,6 +28,7 @@ await page.screenshot({ path: `${S}/01-loaded.png` });
 const box0 = await page.evaluate(() => document.getElementById('cropMeta').textContent);
 console.log('box0:', box0);
 
+await page.click('#coachOk');
 // Drag the crop box left by 200px while paused (no keyframes yet, so no keyframe edit)
 const bb = await page.locator('.cropbox').boundingBox();
 await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
@@ -44,8 +45,8 @@ await page.mouse.move(bb2.x + bb2.width - 2 - 60, bb2.y + bb2.height - 2 - 100, 
 await page.mouse.up();
 console.log('box after resize:', await page.textContent('#cropMeta'));
 
-// Record: press record (starts playback), sweep box right over ~3 seconds, stop
-await page.click('#record');
+// Record by playing and dragging the box for ~3 seconds
+await page.click('#playPause');
 await page.waitForTimeout(300);
 const bb3 = await page.locator('.cropbox').boundingBox();
 await page.mouse.move(bb3.x + bb3.width / 2, bb3.y + bb3.height / 2);
@@ -55,11 +56,12 @@ for (let i = 1; i <= 30; i++) {
   await page.waitForTimeout(100);
 }
 await page.mouse.up();
-await page.click('#record');
-assert.ok((await page.textContent('#kfMeta')).match(/^(\d+) keyframes$/) && Number(RegExp.$1) > 30, 'expected >30 keyframes');
+await page.click('#playPause');
+assert.ok((await page.textContent('#kfMeta')).match(/^(\d+) moves saved$/) && Number(RegExp.$1) > 30, 'expected >30 moves, got ' + await page.textContent('#kfMeta'));
 console.log('after record:', await page.textContent('#pathHint'), '|', await page.textContent('#kfMeta'));
 await page.screenshot({ path: `${S}/02-recorded.png` });
 
+await page.click('details.menu summary');
 const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#downloadJson')]);
 const jsonPath = `${S}/session.json`;
 await dl.saveAs(jsonPath);
@@ -91,16 +93,18 @@ if (href && href.startsWith('blob:')) {
 }
 await page.screenshot({ path: `${S}/03-exported.png` });
 
-// Replay tab
-await page.click('.tab[data-tab="replay"]');
+// Replay via session menu
+await page.click('details.menu summary');
+await page.click('#replayBtn');
 console.log('replay hint:', await page.textContent('#pathHint'));
 await page.evaluate(() => document.getElementById('video').play());
 await page.waitForTimeout(1500);
 console.log('replay box @', await page.evaluate(() => document.getElementById('video').currentTime.toFixed(2)), await page.textContent('#cropMeta'));
 
 // Import JSON round trip
-await page.click('.tab[data-tab="edit"]');
+await page.click('#exitReplay');
 await page.click('#clearPath');
+await page.click('details.menu summary');
 await page.setInputFiles('#jsonInput', jsonPath);
 await page.waitForTimeout(300);
 console.log('import:', await page.textContent('.toast'), '|', await page.textContent('#kfMeta'));

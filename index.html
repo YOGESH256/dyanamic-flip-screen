@@ -29,10 +29,7 @@
         <span class="logo" aria-hidden="true"></span>
         <span>Dynamic Flip</span>
       </a>
-      <nav class="tabs" role="tablist" aria-label="Mode">
-        <button class="tab active" role="tab" data-tab="edit" aria-selected="true">Edit</button>
-        <button class="tab" role="tab" data-tab="replay" aria-selected="false">Replay</button>
-      </nav>
+      <button id="exitReplay" class="btn sm replay-pill" hidden>Replaying session · Exit</button>
       <div class="topbar-right">
         <button id="helpBtn" class="btn ghost sm" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">?</button>
         <button id="openFile" class="btn ghost sm"><svg class="ic"><use href="#i-upload"/></svg>New video</button>
@@ -67,6 +64,14 @@
           <div id="stage" class="stage">
             <video id="video" playsinline preload="auto"></video>
             <div class="rec-badge" aria-hidden="true"><span></span>REC</div>
+            <div id="coach" class="coach" hidden>
+              <div class="coach-card">
+                <p class="coach-step">How it works</p>
+                <p><b>Press play, then drag the frame</b> to follow the action. Your moves are saved automatically as the video plays.</p>
+                <p class="coach-sub">Paused? Drag to fix that moment. Drag the handles on the timeline to trim.</p>
+                <button id="coachOk" class="btn primary sm">Got it</button>
+              </div>
+            </div>
           </div>
 
           <div class="transport">
@@ -89,12 +94,17 @@
           </div>
 
           <div class="actionbar">
-            <button id="record" class="btn record"><span class="dot"></span><span class="label">Record path</span><kbd>R</kbd></button>
-            <p id="pathHint" class="path-hint">Drag the frame to place it, then press Record and steer while it plays.</p>
+            <p id="pathHint" class="path-hint"><span class="step-dot">2</span>Press play, then drag the frame to follow the action. Moves save automatically.</p>
             <div class="actionbar-right">
-              <button id="clearPath" class="btn ghost sm" title="Clear recorded path"><svg class="ic"><use href="#i-trash"/></svg>Clear</button>
-              <button id="importJson" class="btn ghost sm">Import JSON</button>
-              <button id="downloadJson" class="btn ghost sm"><svg class="ic"><use href="#i-download"/></svg>JSON</button>
+              <button id="clearPath" class="btn ghost sm" title="Forget all saved moves"><svg class="ic"><use href="#i-trash"/></svg>Start over</button>
+              <details class="menu">
+                <summary class="btn ghost sm">Session ▾</summary>
+                <div class="menu-items">
+                  <button id="downloadJson" class="menu-item"><svg class="ic"><use href="#i-download"/></svg>Save moves as JSON</button>
+                  <button id="importJson" class="menu-item"><svg class="ic"><use href="#i-upload"/></svg>Load moves from JSON</button>
+                  <button id="replayBtn" class="menu-item"><svg class="ic"><use href="#i-play"/></svg>Replay saved session</button>
+                </div>
+              </details>
               <input type="file" id="jsonInput" accept="application/json,.json" hidden />
             </div>
           </div>
@@ -102,28 +112,23 @@
 
         <aside class="inspector">
           <section class="panel">
-            <header class="panel-h"><h2>Frame</h2><button id="resetBox" class="btn ghost xs" title="Full height, centred"><svg class="ic"><use href="#i-reset"/></svg>Reset</button></header>
+            <header class="panel-h"><h2><span class="step-dot">1</span>Shape</h2><button id="resetBox" class="btn ghost xs" title="Full height, centred"><svg class="ic"><use href="#i-reset"/></svg>Reset</button></header>
             <div id="aspect" class="chips" role="radiogroup" aria-label="Aspect ratio"></div>
             <p class="meta"><span id="cropMeta">—</span></p>
           </section>
 
           <section class="panel">
-            <header class="panel-h"><h2>Preview</h2><span id="kfMeta" class="badge">0 keyframes</span></header>
+            <header class="panel-h"><h2>Preview</h2><span id="kfMeta" class="badge muted">No moves yet</span></header>
             <div class="phone">
               <div id="previewBox" class="phone-screen"><canvas id="preview"></canvas></div>
             </div>
           </section>
 
           <section class="panel">
-            <header class="panel-h"><h2>Export</h2></header>
+            <header class="panel-h"><h2><span class="step-dot">3</span>Export</h2></header>
             <div class="row range">
-              <span>Range</span>
-              <span id="rangeLabel" class="range-label">whole video</span>
-            </div>
-            <div class="range-btns">
-              <button id="setIn" class="btn sm" title="Set in point at playhead">In <kbd>I</kbd></button>
-              <button id="setOut" class="btn sm" title="Set out point at playhead">Out <kbd>O</kbd></button>
-              <button id="resetRange" class="btn ghost sm" title="Export whole video">Whole</button>
+              <span>Clip</span>
+              <span class="range-right"><span id="rangeLabel" class="range-label">whole video</span><button id="resetRange" class="btn ghost xs" hidden>Reset</button></span>
             </div>
             <label class="row">
               <span>Quality</span>
@@ -152,14 +157,14 @@
         <h2 id="helpTitle">Keyboard shortcuts</h2>
         <dl class="keys">
           <dt><kbd>Space</kbd></dt><dd>Play / pause</dd>
-          <dt><kbd>R</kbd></dt><dd>Start / stop recording</dd>
+          <dt><kbd>R</kbd></dt><dd>Hold-free recording: saves the frame position every frame until pressed again, even without dragging</dd>
           <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Step one frame</dd>
           <dt><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></dt><dd>Jump one second</dd>
           <dt><kbd>I</kbd> <kbd>O</kbd></dt><dd>Set export in / out point at playhead</dd>
           <dt><kbd>1</kbd> … <kbd>6</kbd></dt><dd>Aspect ratio</dd>
           <dt><kbd>?</kbd></dt><dd>This panel</dd>
         </dl>
-        <p class="fineprint">While paused, dragging the frame edits the keyframe under the playhead. While recording, every frame is written and anything you re-record over is replaced.</p>
+        <p class="fineprint">Dragging while the video plays saves your moves and replaces anything saved earlier in that span. Dragging while paused fixes that single moment.</p>
         <button id="helpClose" class="btn block">Close</button>
       </div>
     </div>

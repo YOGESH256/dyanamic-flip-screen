@@ -19,6 +19,7 @@ export class CropBox {
   private scale = 1; // display px per source px
   private offset = { x: 0, y: 0 }; // rendered video origin inside stage
   private listeners = new Set<(rect: Rect, interactive: boolean) => void>();
+  private dragListeners = new Set<(dragging: boolean) => void>();
   private minSize = 32;
 
   constructor(stage: HTMLElement) {
@@ -50,6 +51,12 @@ export class CropBox {
   onChange(fn: (rect: Rect, interactive: boolean) => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
+  }
+
+  /** Fires with `true` when the user grabs the box and `false` when they let go. */
+  onDrag(fn: (dragging: boolean) => void): () => void {
+    this.dragListeners.add(fn);
+    return () => this.dragListeners.delete(fn);
   }
 
   /** Call when a new video loads. Resets to a full-height box centred horizontally. */
@@ -126,6 +133,7 @@ export class CropBox {
     const startRect = this.value;
     this.el.setPointerCapture(e.pointerId);
     this.el.classList.add('active');
+    for (const fn of this.dragListeners) fn(true);
 
     const move = (ev: PointerEvent): void => {
       const dx = (ev.clientX - start.x) / this.scale;
@@ -138,6 +146,7 @@ export class CropBox {
       this.el.removeEventListener('pointerup', up);
       this.el.removeEventListener('pointercancel', up);
       this.el.classList.remove('active');
+      for (const fn of this.dragListeners) fn(false);
     };
     this.el.addEventListener('pointermove', move);
     this.el.addEventListener('pointerup', up);
