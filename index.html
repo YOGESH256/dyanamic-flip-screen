@@ -5,33 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dynamic Flip</title>
     <meta name="description" content="Turn wide video into tall video. Steer the crop by hand while it plays. Runs entirely in your browser." />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='4' y='6' width='24' height='20' rx='3' fill='%23161a22'/><rect x='11' y='6' width='10' height='20' rx='2' fill='%237c5cff'/></svg>" />
+    <meta name="theme-color" content="#0b0d12" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230b0d12'/><rect x='6' y='9' width='20' height='14' rx='3' fill='%23262c38'/><rect x='12' y='6' width='8' height='20' rx='2.5' fill='%237c5cff'/></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></symbol>
+      <symbol id="i-vol" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9zM16 8a4.5 4.5 0 0 1 0 8M18.5 5.5a8 8 0 0 1 0 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m0 0 4 4m-4-4L8 8M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12m0 0 4-4m-4 4-4-4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v4.5h4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 11v6m4-6v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4" stroke="currentColor" stroke-width="1.8"/></symbol>
+    </svg>
+
     <header class="topbar">
-      <div class="brand">
+      <a class="brand" href="/">
         <span class="logo" aria-hidden="true"></span>
         <span>Dynamic Flip</span>
-      </div>
-      <nav class="tabs" role="tablist">
+      </a>
+      <nav class="tabs" role="tablist" aria-label="Mode">
         <button class="tab active" role="tab" data-tab="edit" aria-selected="true">Edit</button>
-        <button class="tab" role="tab" data-tab="replay" aria-selected="false">Replay session</button>
+        <button class="tab" role="tab" data-tab="replay" aria-selected="false">Replay</button>
       </nav>
       <div class="topbar-right">
-        <button id="openFile" class="btn ghost">Open video</button>
+        <button id="helpBtn" class="btn ghost sm" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">?</button>
+        <button id="openFile" class="btn ghost sm"><svg class="ic"><use href="#i-upload"/></svg>New video</button>
         <input type="file" id="fileInput" accept="video/*" hidden />
       </div>
     </header>
 
     <main id="app" class="app" data-state="empty">
-      <section id="dropzone" class="dropzone">
-        <div class="drop-inner">
-          <div class="drop-icon" aria-hidden="true"></div>
-          <h1>Drop a wide video here</h1>
-          <p>Pick a tall frame, press record, and steer it while the video plays. Nothing leaves your computer.</p>
-          <button id="dropPick" class="btn primary">Choose a file</button>
-          <p class="hint">MP4, MOV, WebM. Export needs Chrome 94+, Edge 94+, Firefox 130+, or Safari 26+.</p>
+      <section id="dropzone" class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Free · No upload · No account</p>
+          <h1>Wide video in.<br />Tall video out.<br /><span class="accent">You hold the camera.</span></h1>
+          <p class="lede">Auto-reframe guesses where to look and gets it wrong. Here you press record and steer the frame by hand while the video plays. Then export a real MP4, rendered on your machine.</p>
+          <ol class="steps">
+            <li><b>Drop</b> a landscape clip</li>
+            <li><b>Pick</b> 9:16, 4:5, 1:1 or more</li>
+            <li><b>Record</b> and drag the frame as it plays</li>
+            <li><b>Export</b> MP4 or the crop path as JSON</li>
+          </ol>
+        </div>
+        <div class="drop-card" id="dropCard">
+          <svg class="drop-ic"><use href="#i-film"/></svg>
+          <h2>Drop your video here</h2>
+          <p>MP4, MOV or WebM. Stays on this device.</p>
+          <button id="dropPick" class="btn primary lg">Choose a file</button>
+          <p class="fineprint">Export needs Chrome 94+, Edge 94+, Firefox 130+ or Safari 26+.</p>
         </div>
       </section>
 
@@ -39,73 +66,93 @@
         <div class="stage-col">
           <div id="stage" class="stage">
             <video id="video" playsinline preload="auto"></video>
+            <div class="rec-badge" aria-hidden="true"><span></span>REC</div>
           </div>
 
-          <div class="controls">
-            <button id="playPause" class="btn icon" aria-label="Play">▶</button>
+          <div class="transport">
+            <button id="playPause" class="btn icon play" aria-label="Play"><svg class="ic"><use id="playIcon" href="#i-play"/></svg></button>
             <span id="timeLabel" class="time">0:00 / 0:00</span>
-            <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
-            <label class="ctl">
-              <span>Speed</span>
-              <select id="rate">
-                <option value="0.5">0.5x</option>
-                <option value="1" selected>1x</option>
-                <option value="1.5">1.5x</option>
-                <option value="2">2x</option>
-              </select>
-            </label>
-            <label class="ctl">
-              <span>Vol</span>
-              <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
+            <div class="scrub-wrap">
+              <canvas id="timeline" class="scrub" aria-label="Timeline. Drag to seek."></canvas>
+              <div id="scrubTip" class="scrub-tip" hidden>0:00</div>
+            </div>
+            <select id="rate" class="pill" aria-label="Playback speed">
+              <option value="0.5">0.5×</option>
+              <option value="1" selected>1×</option>
+              <option value="1.5">1.5×</option>
+              <option value="2">2×</option>
+            </select>
+            <label class="vol" aria-label="Volume">
+              <svg class="ic"><use href="#i-vol"/></svg>
+              <input id="volume" type="range" min="0" max="1" step="0.05" value="1" />
             </label>
           </div>
 
-          <div class="timeline-wrap">
-            <canvas id="timeline" class="timeline" height="28" aria-label="Keyframe timeline"></canvas>
+          <div class="actionbar">
+            <button id="record" class="btn record"><span class="dot"></span><span class="label">Record path</span><kbd>R</kbd></button>
+            <p id="pathHint" class="path-hint">Drag the frame to place it, then press Record and steer while it plays.</p>
+            <div class="actionbar-right">
+              <button id="clearPath" class="btn ghost sm" title="Clear recorded path"><svg class="ic"><use href="#i-trash"/></svg>Clear</button>
+              <button id="importJson" class="btn ghost sm">Import JSON</button>
+              <button id="downloadJson" class="btn ghost sm"><svg class="ic"><use href="#i-download"/></svg>JSON</button>
+              <input type="file" id="jsonInput" accept="application/json,.json" hidden />
+            </div>
           </div>
-
-          <div class="toolbar">
-            <label class="ctl">
-              <span>Ratio</span>
-              <select id="aspect"></select>
-            </label>
-            <button id="resetBox" class="btn ghost" title="Full-height box, centred">Reset box</button>
-            <span class="spacer"></span>
-            <button id="record" class="btn record">● Record path</button>
-            <button id="clearPath" class="btn ghost">Clear path</button>
-            <button id="downloadJson" class="btn ghost">Download JSON</button>
-            <button id="importJson" class="btn ghost">Import JSON</button>
-            <input type="file" id="jsonInput" accept="application/json,.json" hidden />
-          </div>
-          <p id="status" class="status" role="status"></p>
         </div>
 
-        <aside class="side-col">
-          <h2>Preview</h2>
-          <div id="previewBox" class="preview-box">
-            <canvas id="preview"></canvas>
-          </div>
-          <p class="meta"><span id="cropMeta">—</span> · <span id="kfMeta">0 keyframes</span></p>
+        <aside class="inspector">
+          <section class="panel">
+            <header class="panel-h"><h2>Frame</h2><button id="resetBox" class="btn ghost xs" title="Full height, centred"><svg class="ic"><use href="#i-reset"/></svg>Reset</button></header>
+            <div id="aspect" class="chips" role="radiogroup" aria-label="Aspect ratio"></div>
+            <p class="meta"><span id="cropMeta">—</span></p>
+          </section>
 
-          <h2>Export</h2>
-          <label class="ctl block">
-            <span>Max size</span>
-            <select id="maxEdge">
-              <option value="1080">1080p (tall edge 1080 px)</option>
-              <option value="1920" selected>Full (up to 1920 px)</option>
-              <option value="720">720p</option>
-            </select>
-          </label>
-          <button id="export" class="btn primary block">Export MP4</button>
-          <div id="exportProgress" class="progress" hidden><div class="bar"></div></div>
-          <p id="exportNote" class="hint">Audio is copied unchanged. Volume and speed changes apply to preview and replay only.</p>
-          <div id="exportResult" class="export-result" hidden>
-            <video id="exportVideo" controls playsinline></video>
-            <a id="exportDownload" class="btn ghost block" download="dynamic-flip.mp4">Download</a>
-          </div>
+          <section class="panel">
+            <header class="panel-h"><h2>Preview</h2><span id="kfMeta" class="badge">0 keyframes</span></header>
+            <div class="phone">
+              <div id="previewBox" class="phone-screen"><canvas id="preview"></canvas></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <header class="panel-h"><h2>Export</h2></header>
+            <label class="row">
+              <span>Quality</span>
+              <select id="maxEdge" class="pill">
+                <option value="1920" selected>Original (up to 1920 px)</option>
+                <option value="1080">1080p</option>
+                <option value="720">720p</option>
+              </select>
+            </label>
+            <button id="export" class="btn primary block lg">Export MP4</button>
+            <div id="exportProgress" class="progress" hidden><div class="bar"></div><span class="pct">0%</span></div>
+            <p id="exportNote" class="fineprint">H.264 + AAC. Audio is copied unchanged. Volume and speed changes apply to preview and replay only.</p>
+            <div id="exportResult" class="export-result" hidden>
+              <video id="exportVideo" controls playsinline></video>
+              <a id="exportDownload" class="btn block" download="dynamic-flip.mp4"><svg class="ic"><use href="#i-download"/></svg>Download MP4</a>
+            </div>
+          </section>
         </aside>
       </section>
     </main>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+
+    <div id="help" class="modal" hidden>
+      <div class="modal-card" role="dialog" aria-labelledby="helpTitle">
+        <h2 id="helpTitle">Keyboard shortcuts</h2>
+        <dl class="keys">
+          <dt><kbd>Space</kbd></dt><dd>Play / pause</dd>
+          <dt><kbd>R</kbd></dt><dd>Start / stop recording</dd>
+          <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Step one frame</dd>
+          <dt><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></dt><dd>Jump one second</dd>
+          <dt><kbd>1</kbd> … <kbd>6</kbd></dt><dd>Aspect ratio</dd>
+          <dt><kbd>?</kbd></dt><dd>This panel</dd>
+        </dl>
+        <p class="fineprint">While paused, dragging the frame edits the keyframe under the playhead. While recording, every frame is written and anything you re-record over is replaced.</p>
+        <button id="helpClose" class="btn block">Close</button>
+      </div>
+    </div>
   </body>
   <script type="module" src="/src/main.ts"></script>
 </html>

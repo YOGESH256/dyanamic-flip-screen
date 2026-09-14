@@ -16,20 +16,24 @@ const stage = $('stage');
 const video = $<HTMLVideoElement>('video');
 const fileInput = $<HTMLInputElement>('fileInput');
 const playPause = $<HTMLButtonElement>('playPause');
-const seek = $<HTMLInputElement>('seek');
 const timeLabel = $('timeLabel');
 const rateSel = $<HTMLSelectElement>('rate');
 const volumeCtl = $<HTMLInputElement>('volume');
-const aspectSel = $<HTMLSelectElement>('aspect');
+const aspectChips = $('aspect');
+const playIcon = $<SVGUseElement & HTMLElement>('playIcon');
+const scrubTip = $('scrubTip');
+const pathHint = $('pathHint');
+const toasts = $('toasts');
+const help = $('help');
 const recordBtn = $<HTMLButtonElement>('record');
 const clearBtn = $<HTMLButtonElement>('clearPath');
 const timeline = $<HTMLCanvasElement>('timeline');
-const status = $('status');
 const cropMeta = $('cropMeta');
 const kfMeta = $('kfMeta');
 const exportBtn = $<HTMLButtonElement>('export');
 const exportProgress = $('exportProgress');
 const exportBar = exportProgress.querySelector<HTMLElement>('.bar')!;
+const exportPct = exportProgress.querySelector<HTMLElement>('.pct')!;
 const exportResult = $('exportResult');
 const exportVideoEl = $<HTMLVideoElement>('exportVideo');
 const exportDownload = $<HTMLAnchorElement>('exportDownload');
@@ -44,6 +48,7 @@ const state = {
   recording: false,
   lastRecordedT: 0,
   mode: 'edit' as Mode,
+  aspect: 0,
   exporting: null as AbortController | null,
   resultUrl: '',
 };
@@ -53,9 +58,24 @@ const preview = new Preview(video, $<HTMLCanvasElement>('preview'), $('previewBo
 
 // ---------- helpers ----------
 
+let toastTimer = 0;
 function setStatus(msg: string, kind: '' | 'error' | 'ok' = ''): void {
-  status.textContent = msg;
-  status.className = `status ${kind}`.trim();
+  if (!msg) return;
+  toasts.replaceChildren();
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`.trim();
+  el.textContent = msg;
+  el.dataset.kind = kind;
+  toasts.appendChild(el);
+  clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    el.classList.add('out');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  }, kind === 'error' ? 6000 : 3500);
+}
+
+function setHint(msg: string): void {
+  pathHint.textContent = msg;
 }
 
 function fmtTime(s: number): string {
@@ -66,8 +86,12 @@ function fmtTime(s: number): string {
 }
 
 function aspectValue(): number {
-  const p = ASPECT_PRESETS[Number(aspectSel.value)];
+  const p = ASPECT_PRESETS[state.aspect];
   return p.w / p.h;
+}
+
+function aspectLabel(): string {
+  return ASPECT_PRESETS[state.aspect].label;
 }
 
 /** Rendered rect of the video inside the stage under object-fit: contain. */
@@ -108,9 +132,14 @@ function applyPathAt(t: number): void {
 }
 
 function updateMeta(rect: Rect): void {
-  cropMeta.textContent = `${Math.round(rect.w)}×${Math.round(rect.h)} at ${Math.round(rect.x)},${Math.round(rect.y)}`;
+  cropMeta.textContent = `${Math.round(rect.w)} × ${Math.round(rect.h)} px, offset ${Math.round(rect.x)}, ${Math.round(rect.y)}`;
   const n = state.path.length;
   kfMeta.textContent = `${n} keyframe${n === 1 ? '' : 's'}`;
+  if (state.mode === 'edit' && !state.recording) {
+    setHint(n === 0
+      ? 'Drag the frame to place it, then press Record and steer while it plays.'
+      : `Path covers 0:00 to ${fmtTime(state.path.duration)}. Play to watch it, drag while paused to fix a keyframe, or record again over any span.`);
+  }
 }
 
 function setMode(mode: Mode): void {
@@ -127,9 +156,9 @@ function setMode(mode: Mode): void {
     rateSel.disabled = true;
     volumeCtl.disabled = true;
     if (state.path.length === 0) {
-      setStatus('No recorded session yet. Record one in the Edit tab or import a JSON file.');
+      setHint('No recorded session yet. Record one in the Edit tab or import a JSON file.');
     } else {
-      setStatus('Replaying the recorded session. Crop, volume and speed follow the JSON.');
+      setHint('Replaying the recorded session. Frame, volume and speed follow the JSON.');
       video.pause();
       video.currentTime = 0;
       applyPathAt(0);
@@ -138,7 +167,7 @@ function setMode(mode: Mode): void {
     recordBtn.disabled = false;
     rateSel.disabled = false;
     volumeCtl.disabled = false;
-    setStatus('');
+    updateMeta(box.value);
   }
 }
 
@@ -164,13 +193,13 @@ video.addEventListener('loadedmetadata', () => {
   dropzone.hidden = true;
   workspace.hidden = false;
   app.dataset.state = 'ready';
-  box.setAspect(aspectValue());
+  box.setAspect(aspectValue(), aspectLabel());
   box.setSource(video.videoWidth, video.videoHeight);
   layout();
   preview.setRect(box.value);
-  seek.value = '0';
   timeLabel.textContent = `0:00 / ${fmtTime(video.duration)}`;
-  setStatus(`${video.videoWidth}×${video.videoHeight}, ${fmtTime(video.duration)}. Drag the box, or press Record and steer while it plays.`, 'ok');
+  updateMeta(box.value);
+  setStatus(`Loaded ${state.file?.name ?? 'video'} · ${video.videoWidth}×${video.videoHeight} · ${fmtTime(video.duration)}`, 'ok');
 });
 
 video.addEventListener('error', () => {
@@ -188,6 +217,10 @@ for (const evt of ['dragenter', 'dragover'] as const) {
 }
 document.addEventListener('dragleave', (e) => {
   if (e.relatedTarget === null) dropzone.classList.remove('over');
+});
+$('dropCard').addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest('button')) return;
+  fileInput.click();
 });
 document.addEventListener('drop', (e) => {
   e.preventDefault();
@@ -212,11 +245,11 @@ function togglePlay(): void {
 }
 playPause.addEventListener('click', togglePlay);
 video.addEventListener('play', () => {
-  playPause.textContent = '❚❚';
+  playIcon.setAttribute('href', '#i-pause');
   playPause.setAttribute('aria-label', 'Pause');
 });
 video.addEventListener('pause', () => {
-  playPause.textContent = '▶';
+  playIcon.setAttribute('href', '#i-play');
   playPause.setAttribute('aria-label', 'Play');
 });
 video.addEventListener('ended', () => {
@@ -226,16 +259,6 @@ video.addEventListener('ended', () => {
   }
 });
 
-let seeking = false;
-seek.addEventListener('input', () => {
-  seeking = true;
-  const t = (Number(seek.value) / 1000) * video.duration;
-  video.currentTime = t;
-  if (!state.recording) applyPathAt(t);
-});
-seek.addEventListener('change', () => {
-  seeking = false;
-});
 video.addEventListener('seeked', () => {
   if (!state.recording) applyPathAt(video.currentTime);
   preview.invalidate();
@@ -251,18 +274,32 @@ volumeCtl.addEventListener('input', () => {
 // ---------- crop box ----------
 
 ASPECT_PRESETS.forEach((p, i) => {
-  const o = document.createElement('option');
-  o.value = String(i);
-  o.textContent = p.label;
-  aspectSel.appendChild(o);
+  const b = document.createElement('button');
+  b.className = 'chip';
+  b.type = 'button';
+  b.role = 'radio';
+  b.setAttribute('aria-checked', String(i === state.aspect));
+  b.dataset.index = String(i);
+  const shape = document.createElement('span');
+  shape.className = 'shape';
+  const k = 22 / Math.max(p.w, p.h);
+  shape.style.width = `${Math.round(p.w * k)}px`;
+  shape.style.height = `${Math.round(p.h * k)}px`;
+  b.append(shape, document.createTextNode(p.label));
+  b.addEventListener('click', () => selectAspect(i));
+  aspectChips.appendChild(b);
 });
-aspectSel.addEventListener('change', () => {
+
+function selectAspect(i: number): void {
+  if (i === state.aspect || state.mode === 'replay') return;
   const had = state.path.length;
   stopRecording();
   state.path.clear();
-  box.setAspect(aspectValue());
+  state.aspect = i;
+  aspectChips.querySelectorAll<HTMLButtonElement>('.chip').forEach((c) => c.setAttribute('aria-checked', String(c.dataset.index === String(i))));
+  box.setAspect(aspectValue(), aspectLabel());
   if (had) setStatus('Ratio changed, so the recorded path was cleared.');
-});
+}
 $('resetBox').addEventListener('click', () => box.reset());
 
 box.onChange((rect, interactive) => {
@@ -284,10 +321,10 @@ function startRecording(): void {
   state.lastRecordedT = video.currentTime;
   app.dataset.recording = 'true';
   recordBtn.classList.add('on');
-  recordBtn.textContent = '■ Stop recording';
+  recordBtn.querySelector('.label')!.textContent = 'Stop';
   state.path.set(currentKeyframe());
   if (video.paused) void video.play();
-  setStatus('Recording. Steer the box while the video plays. Re-recording over a span replaces it.');
+  setHint('Recording. Drag the frame to follow the action. Press R or the button to stop.');
 }
 
 function stopRecording(): void {
@@ -295,14 +332,15 @@ function stopRecording(): void {
   state.recording = false;
   app.dataset.recording = 'false';
   recordBtn.classList.remove('on');
-  recordBtn.textContent = '● Record path';
+  recordBtn.querySelector('.label')!.textContent = 'Record path';
   state.path.set(currentKeyframe());
+  updateMeta(box.value);
 }
 
 recordBtn.addEventListener('click', () => {
   if (state.recording) {
     stopRecording();
-    setStatus(`Stopped with ${state.path.length} keyframes. Play to watch the path, or export.`, 'ok');
+    setStatus(`Recorded ${state.path.length} keyframes.`, 'ok');
   } else {
     startRecording();
   }
@@ -321,7 +359,6 @@ function tick(): void {
     const t = video.currentTime;
     if (t !== lastVideoTime) {
       lastVideoTime = t;
-      if (!seeking) seek.value = String(Math.round((t / video.duration) * 1000));
       timeLabel.textContent = `${fmtTime(t)} / ${fmtTime(video.duration)}`;
       if (state.recording && !video.paused) {
         // Going forward: wipe whatever was previously recorded in this span, then write the new sample.
@@ -353,32 +390,89 @@ function drawTimeline(): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   const dur = video.duration || 1;
-  ctx.fillStyle = '#1d222c';
-  ctx.fillRect(0, h / 2 - 3, w, 6);
-  // Recorded coverage as a solid band.
-  const kfs = state.path.keyframes;
-  if (kfs.length > 1) {
-    ctx.fillStyle = 'rgba(124, 92, 255, .35)';
-    const x0 = (kfs[0].t / dur) * w;
-    const x1 = (kfs[kfs.length - 1].t / dur) * w;
-    ctx.fillRect(x0, h / 2 - 3, Math.max(1, x1 - x0), 6);
-  }
-  ctx.fillStyle = '#9d86ff';
-  for (const kf of kfs) {
-    const x = (kf.t / dur) * w;
-    ctx.fillRect(x - 0.5, h / 2 - 8, 1, 16);
-  }
+  const trackY = 14;
+  const trackH = 12;
+  // Track background
+  ctx.fillStyle = '#1c212c';
+  roundRect(ctx, 0, trackY, w, trackH, 4);
+  ctx.fill();
+  // Played portion
   const px = (video.currentTime / dur) * w;
-  ctx.fillStyle = state.recording ? '#ff5c7a' : '#fff';
-  ctx.fillRect(px - 1, 2, 2, h - 4);
+  ctx.fillStyle = '#323a48';
+  roundRect(ctx, 0, trackY, Math.max(0, px), trackH, 4);
+  ctx.fill();
+  // Recorded coverage: contiguous runs of keyframes (gap > 0.5s splits a run)
+  const kfs = state.path.keyframes;
+  if (kfs.length) {
+    ctx.fillStyle = state.recording ? 'rgba(255, 77, 109, .75)' : 'rgba(124, 92, 255, .85)';
+    let runStart = kfs[0].t;
+    let prev = kfs[0].t;
+    const flush = (a: number, b: number): void => {
+      const x0 = (a / dur) * w;
+      const x1 = (b / dur) * w;
+      roundRect(ctx, x0, trackY + 3, Math.max(3, x1 - x0), trackH - 6, 3);
+      ctx.fill();
+    };
+    for (let i = 1; i < kfs.length; i++) {
+      if (kfs[i].t - prev > 0.5) {
+        flush(runStart, prev);
+        runStart = kfs[i].t;
+      }
+      prev = kfs[i].t;
+    }
+    flush(runStart, prev);
+  }
+  // Playhead
+  ctx.fillStyle = state.recording ? '#ff4d6d' : '#fff';
+  roundRect(ctx, px - 1.5, 6, 3, h - 12, 1.5);
+  ctx.fill();
 }
 
-timeline.addEventListener('click', (e) => {
-  if (!video.duration) return;
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+let seeking = false;
+function scrubTo(clientX: number): void {
   const r = timeline.getBoundingClientRect();
-  const t = ((e.clientX - r.left) / r.width) * video.duration;
+  const t = clamp01((clientX - r.left) / r.width) * video.duration;
   video.currentTime = t;
   if (!state.recording) applyPathAt(t);
+  scrubTip.textContent = fmtTime(t);
+  scrubTip.style.left = `${clamp01((clientX - r.left) / r.width) * 100}%`;
+}
+function clamp01(v: number): number {
+  return Math.min(1, Math.max(0, v));
+}
+timeline.addEventListener('pointerdown', (e) => {
+  if (!video.duration) return;
+  e.preventDefault();
+  seeking = true;
+  timeline.setPointerCapture(e.pointerId);
+  scrubTip.hidden = false;
+  scrubTo(e.clientX);
+});
+timeline.addEventListener('pointermove', (e) => {
+  if (!video.duration) return;
+  if (seeking) {
+    scrubTo(e.clientX);
+  } else {
+    const r = timeline.getBoundingClientRect();
+    const k = clamp01((e.clientX - r.left) / r.width);
+    scrubTip.hidden = false;
+    scrubTip.textContent = fmtTime(k * video.duration);
+    scrubTip.style.left = `${k * 100}%`;
+  }
+});
+for (const evt of ['pointerup', 'pointercancel'] as const) {
+  timeline.addEventListener(evt, () => {
+    seeking = false;
+    scrubTip.hidden = true;
+  });
+}
+timeline.addEventListener('pointerleave', () => {
+  if (!seeking) scrubTip.hidden = true;
 });
 
 state.path.onChange(() => {
@@ -422,8 +516,9 @@ jsonInput.addEventListener('change', async () => {
     ASPECT_PRESETS.forEach((p, i) => {
       if (Math.abs(p.w / p.h - ratio) < Math.abs(ASPECT_PRESETS[best].w / ASPECT_PRESETS[best].h - ratio)) best = i;
     });
-    aspectSel.value = String(best);
-    box.setAspect(aspectValue());
+    state.aspect = best;
+    aspectChips.querySelectorAll<HTMLButtonElement>('.chip').forEach((c) => c.setAttribute('aria-checked', String(c.dataset.index === String(best))));
+    box.setAspect(aspectValue(), aspectLabel());
     state.path.clear();
     for (const kf of imported.keyframes) state.path.set(kf);
     applyPathAt(video.currentTime);
@@ -456,7 +551,8 @@ exportBtn.addEventListener('click', async () => {
   exportBtn.textContent = 'Cancel';
   exportProgress.hidden = false;
   exportBar.style.width = '0%';
-  setStatus('Exporting… this runs on your machine, so speed depends on your hardware.');
+  exportPct.textContent = '0%';
+  setHint('Exporting on your machine. Speed depends on your hardware.');
   const started = performance.now();
   try {
     const { exportVideo } = await import('./exporter');
@@ -468,6 +564,7 @@ exportBtn.addEventListener('click', async () => {
       signal: ctrl.signal,
       onProgress: (p) => {
         exportBar.style.width = `${(p * 100).toFixed(1)}%`;
+        exportPct.textContent = `${Math.round(p * 100)}%`;
       },
     });
     state.resultUrl = URL.createObjectURL(result.blob);
@@ -476,7 +573,8 @@ exportBtn.addEventListener('click', async () => {
     exportResult.hidden = false;
     const secs = ((performance.now() - started) / 1000).toFixed(1);
     const mb = (result.blob.size / 1e6).toFixed(1);
-    setStatus(`Exported ${result.width}×${result.height}, ${mb} MB in ${secs}s.`, 'ok');
+    setStatus(`Exported ${result.width}×${result.height} · ${mb} MB · ${secs}s`, 'ok');
+    exportResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (err) {
     if (ctrl.signal.aborted) setStatus('Export cancelled.');
     else setStatus(`Export failed: ${(err as Error).message}`, 'error');
@@ -484,6 +582,7 @@ exportBtn.addEventListener('click', async () => {
     state.exporting = null;
     exportBtn.textContent = 'Export MP4';
     exportProgress.hidden = true;
+    updateMeta(box.value);
   }
 });
 
@@ -493,10 +592,31 @@ document.querySelectorAll<HTMLButtonElement>('.tab').forEach((t) => {
   t.addEventListener('click', () => setMode(t.dataset.tab as Mode));
 });
 
+function toggleHelp(force?: boolean): void {
+  help.hidden = force === undefined ? !help.hidden : !force;
+}
+$('helpBtn').addEventListener('click', () => toggleHelp());
+$('helpClose').addEventListener('click', () => toggleHelp(false));
+help.addEventListener('click', (e) => {
+  if (e.target === help) toggleHelp(false);
+});
+
 document.addEventListener('keydown', (e) => {
-  if (!state.file) return;
   const target = e.target as HTMLElement;
   if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return;
+  if (e.key === '?') {
+    toggleHelp();
+    return;
+  }
+  if (e.key === 'Escape' && !help.hidden) {
+    toggleHelp(false);
+    return;
+  }
+  if (!state.file) return;
+  if (/^[1-6]$/.test(e.key) && !e.metaKey && !e.ctrlKey) {
+    selectAspect(Number(e.key) - 1);
+    return;
+  }
   switch (e.key) {
     case ' ':
       e.preventDefault();

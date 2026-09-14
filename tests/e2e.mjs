@@ -21,7 +21,7 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + 
 await page.goto(BASE);
 await page.setInputFiles('#fileInput', `${S}/test.mp4`);
 await page.waitForFunction(() => document.getElementById('app').dataset.state === 'ready', null, { timeout: 15000 });
-console.log('status:', await page.textContent('#status'));
+console.log('hint:', await page.textContent('#pathHint'));
 await page.screenshot({ path: `${S}/01-loaded.png` });
 
 // Initial box geometry
@@ -57,7 +57,7 @@ for (let i = 1; i <= 30; i++) {
 await page.mouse.up();
 await page.click('#record');
 assert.ok((await page.textContent('#kfMeta')).match(/^(\d+) keyframes$/) && Number(RegExp.$1) > 30, 'expected >30 keyframes');
-console.log('after record:', await page.textContent('#status'), '|', await page.textContent('#kfMeta'));
+console.log('after record:', await page.textContent('#pathHint'), '|', await page.textContent('#kfMeta'));
 await page.screenshot({ path: `${S}/02-recorded.png` });
 
 const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#downloadJson')]);
@@ -74,9 +74,10 @@ console.log('box at t=1.5:', await page.textContent('#cropMeta'));
 // Export
 await page.click('#export');
 const t0 = Date.now();
-await page.waitForFunction(() => !document.getElementById('exportResult').hidden || document.getElementById('status').classList.contains('error'), null, { timeout: 120000 });
-assert.ok(!(await page.getAttribute('#status', 'class')).includes('error'), 'export failed: ' + await page.textContent('#status'));
-console.log('export:', await page.textContent('#status'), `(${((Date.now() - t0) / 1000).toFixed(1)}s wall)`);
+await page.waitForFunction(() => !document.getElementById('exportResult').hidden || document.querySelector('.toast.error'), null, { timeout: 120000 });
+const toast = await page.textContent('.toast');
+assert.ok(!(await page.$('.toast.error')), 'export failed: ' + toast);
+console.log('export:', toast, `(${((Date.now() - t0) / 1000).toFixed(1)}s wall)`);
 const href = await page.getAttribute('#exportDownload', 'href');
 if (href && href.startsWith('blob:')) {
   const b64 = await page.evaluate(async (u) => {
@@ -92,7 +93,7 @@ await page.screenshot({ path: `${S}/03-exported.png` });
 
 // Replay tab
 await page.click('.tab[data-tab="replay"]');
-console.log('replay status:', await page.textContent('#status'));
+console.log('replay hint:', await page.textContent('#pathHint'));
 await page.evaluate(() => document.getElementById('video').play());
 await page.waitForTimeout(1500);
 console.log('replay box @', await page.evaluate(() => document.getElementById('video').currentTime.toFixed(2)), await page.textContent('#cropMeta'));
@@ -102,7 +103,7 @@ await page.click('.tab[data-tab="edit"]');
 await page.click('#clearPath');
 await page.setInputFiles('#jsonInput', jsonPath);
 await page.waitForTimeout(300);
-console.log('import:', await page.textContent('#status'), '|', await page.textContent('#kfMeta'));
+console.log('import:', await page.textContent('.toast'), '|', await page.textContent('#kfMeta'));
 
 console.log('errors:', errors.length ? errors : 'none');
 assert.equal(errors.length, 0, 'page had console errors');

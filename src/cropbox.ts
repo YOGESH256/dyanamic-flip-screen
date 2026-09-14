@@ -10,6 +10,8 @@ const HANDLES: Handle[] = ['nw', 'ne', 'sw', 'se'];
  */
 export class CropBox {
   readonly el: HTMLDivElement;
+  private tag: HTMLDivElement;
+  private label = '';
   private rect: Rect = { x: 0, y: 0, w: 1, h: 1 };
   private srcW = 1;
   private srcH = 1;
@@ -23,6 +25,14 @@ export class CropBox {
     this.el = document.createElement('div');
     this.el.className = 'cropbox';
     this.el.hidden = true;
+    for (const cls of ['mask', 'frame', 'grid']) {
+      const d = document.createElement('div');
+      d.className = cls;
+      this.el.appendChild(d);
+    }
+    this.tag = document.createElement('div');
+    this.tag.className = 'tag';
+    this.el.appendChild(this.tag);
     for (const h of HANDLES) {
       const d = document.createElement('div');
       d.className = `handle ${h}`;
@@ -50,8 +60,9 @@ export class CropBox {
     this.reset();
   }
 
-  setAspect(ratio: number): void {
+  setAspect(ratio: number, label = ''): void {
     this.ratio = ratio;
+    this.label = label;
     this.reset();
   }
 
@@ -104,6 +115,7 @@ export class CropBox {
     s.transform = `translate(${this.offset.x + this.rect.x * this.scale}px, ${this.offset.y + this.rect.y * this.scale}px)`;
     s.width = `${this.rect.w * this.scale}px`;
     s.height = `${this.rect.h * this.scale}px`;
+    this.tag.textContent = `${this.label} · ${Math.round(this.rect.w)}×${Math.round(this.rect.h)}`;
   }
 
   private onPointerDown = (e: PointerEvent): void => {
