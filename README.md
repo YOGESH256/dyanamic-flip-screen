@@ -14,6 +14,7 @@ Auto-reframe tools guess where the subject is and often guess wrong. Pro editors
 - **Record path**: press record, drag the box while the video plays. Every frame stores time, crop rectangle, volume, and playback rate. Re-recording over a span replaces it. Dragging while paused edits the keyframe under the playhead.
 - Download the path as JSON, import it back.
 - **Replay session** tab plays the recorded JSON back: crop, volume, and speed follow it.
+- **In / out points** (I and O keys) so you export just the segment you want from a long recording.
 - **Export MP4** in the browser via WebCodecs and [Mediabunny](https://mediabunny.dev). H.264 video, AAC audio, crop interpolated per frame.
 
 JSON format:
@@ -34,6 +35,9 @@ JSON format:
 | Space | Play / pause |
 | R | Start / stop recording |
 | ← → | Step one frame (Shift: one second) |
+| I / O | Set export in / out point at playhead |
+| 1 … 6 | Aspect ratio |
+| ? | Shortcuts |
 
 ## Browser support
 
@@ -53,7 +57,7 @@ Static site. Deploys to Vercel, Netlify, or GitHub Pages with no server.
 ## Limits
 
 - Export copies audio unchanged. Volume and playback-rate changes apply to preview and replay only.
-- Export speed depends on your hardware. A 1080p minute takes roughly 10 to 30 seconds on a recent laptop.
+- Export speed depends on your hardware. Measured on an M-series MacBook: a 65-minute 1080p recording exports at roughly 13x realtime, so about 5 minutes for the whole file. Use in/out points for clips.
 - Very large files are streamed, but decode still happens on your machine, so mobile devices may struggle above a few hundred MB.
 
 ## Structure

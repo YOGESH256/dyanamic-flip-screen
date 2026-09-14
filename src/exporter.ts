@@ -19,6 +19,8 @@ export interface ExportOptions {
   fallback: Rect;
   /** Longest output edge in pixels. */
   maxEdge: number;
+  /** Optional in/out points in source seconds. */
+  trim?: { start: number; end: number };
   onProgress: (fraction: number) => void;
   signal?: AbortSignal;
 }
@@ -43,7 +45,8 @@ export async function isExportSupported(): Promise<boolean> {
  * Audio is copied as-is; time-varying volume and playback rate are preview-only.
  */
 export async function exportVideo(opts: ExportOptions): Promise<ExportResult> {
-  const first = opts.path.sampleAt(0)?.rect ?? opts.fallback;
+  const trimStart = opts.trim?.start ?? 0;
+  const first = opts.path.sampleAt(trimStart)?.rect ?? opts.fallback;
   const ratio = first.w / first.h;
   let outW: number;
   let outH: number;
@@ -58,6 +61,7 @@ export async function exportVideo(opts: ExportOptions): Promise<ExportResult> {
   const canvas = new OffscreenCanvas(outW, outH);
   const ctx = canvas.getContext('2d', { alpha: false })!;
 
+  let tsOffset: number | null = null;
   const input = new Input({ source: new BlobSource(opts.file), formats: ALL_FORMATS });
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target: new BufferTarget() });
 
@@ -71,12 +75,15 @@ export async function exportVideo(opts: ExportOptions): Promise<ExportResult> {
       processedWidth: outW,
       processedHeight: outH,
       process: (sample) => {
-        const r = opts.path.sampleAt(sample.timestamp)?.rect ?? opts.fallback;
+        // Mediabunny reports output-relative timestamps when trimming; map back to source time for the path.
+        if (tsOffset === null) tsOffset = sample.timestamp < trimStart - 0.5 ? trimStart : 0;
+        const r = opts.path.sampleAt(sample.timestamp + tsOffset)?.rect ?? opts.fallback;
         sample.draw(ctx, r.x, r.y, r.w, r.h, 0, 0, outW, outH);
         return canvas;
       },
     },
     audio: { codec: 'aac' },
+    trim: opts.trim,
   });
 
   if (!conversion.isValid) {

@@ -116,6 +116,15 @@
 
           <section class="panel">
             <header class="panel-h"><h2>Export</h2></header>
+            <div class="row range">
+              <span>Range</span>
+              <span id="rangeLabel" class="range-label">whole video</span>
+            </div>
+            <div class="range-btns">
+              <button id="setIn" class="btn sm" title="Set in point at playhead">In <kbd>I</kbd></button>
+              <button id="setOut" class="btn sm" title="Set out point at playhead">Out <kbd>O</kbd></button>
+              <button id="resetRange" class="btn ghost sm" title="Export whole video">Whole</button>
+            </div>
             <label class="row">
               <span>Quality</span>
               <select id="maxEdge" class="pill">
@@ -146,6 +155,7 @@
           <dt><kbd>R</kbd></dt><dd>Start / stop recording</dd>
           <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Step one frame</dd>
           <dt><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></dt><dd>Jump one second</dd>
+          <dt><kbd>I</kbd> <kbd>O</kbd></dt><dd>Set export in / out point at playhead</dd>
           <dt><kbd>1</kbd> … <kbd>6</kbd></dt><dd>Aspect ratio</dd>
           <dt><kbd>?</kbd></dt><dd>This panel</dd>
         </dl>

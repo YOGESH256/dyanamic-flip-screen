@@ -39,6 +39,7 @@ const exportVideoEl = $<HTMLVideoElement>('exportVideo');
 const exportDownload = $<HTMLAnchorElement>('exportDownload');
 const maxEdgeSel = $<HTMLSelectElement>('maxEdge');
 const jsonInput = $<HTMLInputElement>('jsonInput');
+const rangeLabel = $('rangeLabel');
 
 type Mode = 'edit' | 'replay';
 
@@ -49,6 +50,7 @@ const state = {
   lastRecordedT: 0,
   mode: 'edit' as Mode,
   aspect: 0,
+  trim: { start: 0, end: Infinity },
   exporting: null as AbortController | null,
   resultUrl: '',
 };
@@ -198,6 +200,8 @@ video.addEventListener('loadedmetadata', () => {
   layout();
   preview.setRect(box.value);
   timeLabel.textContent = `0:00 / ${fmtTime(video.duration)}`;
+  state.trim = { start: 0, end: video.duration };
+  updateRange();
   updateMeta(box.value);
   setStatus(`Loaded ${state.file?.name ?? 'video'} · ${video.videoWidth}×${video.videoHeight} · ${fmtTime(video.duration)}`, 'ok');
 });
@@ -401,6 +405,17 @@ function drawTimeline(): void {
   ctx.fillStyle = '#323a48';
   roundRect(ctx, 0, trackY, Math.max(0, px), trackH, 4);
   ctx.fill();
+  // Excluded region outside the export range
+  if (hasTrim()) {
+    ctx.fillStyle = 'rgba(11, 13, 18, .7)';
+    const xi = (state.trim.start / dur) * w;
+    const xo = (state.trim.end / dur) * w;
+    if (xi > 0) ctx.fillRect(0, trackY, xi, trackH);
+    if (xo < w) ctx.fillRect(xo, trackY, w - xo, trackH);
+    ctx.fillStyle = '#eef0f5';
+    ctx.fillRect(xi, trackY - 3, 2, trackH + 6);
+    ctx.fillRect(xo - 2, trackY - 3, 2, trackH + 6);
+  }
   // Recorded coverage: contiguous runs of keyframes (gap > 0.5s splits a run)
   const kfs = state.path.keyframes;
   if (kfs.length) {
@@ -528,6 +543,40 @@ jsonInput.addEventListener('change', async () => {
   }
 });
 
+// ---------- export range ----------
+
+function hasTrim(): boolean {
+  return state.trim.start > 0.01 || state.trim.end < video.duration - 0.01;
+}
+
+function updateRange(): void {
+  rangeLabel.textContent = hasTrim()
+    ? `${fmtTime(state.trim.start)} – ${fmtTime(state.trim.end)} (${fmtTime(state.trim.end - state.trim.start)})`
+    : 'whole video';
+  drawTimeline();
+}
+
+function setIn(): void {
+  if (!state.file) return;
+  state.trim.start = Math.min(video.currentTime, state.trim.end - 0.1);
+  updateRange();
+  setStatus(`In point ${fmtTime(state.trim.start)}`);
+}
+
+function setOut(): void {
+  if (!state.file) return;
+  state.trim.end = Math.max(video.currentTime, state.trim.start + 0.1);
+  updateRange();
+  setStatus(`Out point ${fmtTime(state.trim.end)}`);
+}
+
+$('setIn').addEventListener('click', setIn);
+$('setOut').addEventListener('click', setOut);
+$('resetRange').addEventListener('click', () => {
+  state.trim = { start: 0, end: video.duration || Infinity };
+  updateRange();
+});
+
 // ---------- export ----------
 
 function clearExportResult(): void {
@@ -561,6 +610,7 @@ exportBtn.addEventListener('click', async () => {
       path: state.path,
       fallback: box.value,
       maxEdge: Number(maxEdgeSel.value),
+      trim: hasTrim() ? { ...state.trim } : undefined,
       signal: ctrl.signal,
       onProgress: (p) => {
         exportBar.style.width = `${(p * 100).toFixed(1)}%`;
@@ -618,6 +668,14 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   switch (e.key) {
+    case 'i':
+    case 'I':
+      setIn();
+      break;
+    case 'o':
+    case 'O':
+      setOut();
+      break;
     case ' ':
       e.preventDefault();
       togglePlay();
